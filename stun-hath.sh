@@ -69,7 +69,7 @@ curl -s -m 5 \
 [ "$(grep f_port $HATHPHP | awk -F '"' '{print$6}')" = $WANPORT ] || \
 echo Failed to get response. Please check PROXY. >&2
 
-# 若 H@H 运行在主路由上，则添加 DNAT 规则并退出
+# 若 H@H 运行在主路由上，则添加 DNAT 规则
 NFTDNAT() {
 	nft add table ip STUN
 	nft delete chain ip STUN HATHDNAT 2>/dev/null
