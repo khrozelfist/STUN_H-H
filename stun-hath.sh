@@ -11,8 +11,8 @@ WANPORT=$2
 LANPORT=$4
 L4PROTO=$5
 OWNADDR=$6
-OLDPORT=$(awk -F ':| ' '{print$3}' $HATHDIR/stun-hath.ifo 2>/dev/null)
-OLDDATE=$(awk '{print$NF}' $HATHDIR/stun-hath.ifo 2>/dev/null)
+OLDPORT=$(awk -F ':| ' '{print$3}' $HATHDIR/stun-hath.info 2>/dev/null)
+OLDDATE=$(awk '{print$NF}' $HATHDIR/stun-hath.info 2>/dev/null)
 
 # 防止脚本重复运行
 PIDNF=$( ( ps aux 2>/dev/null; ps ) | awk '{for(i=1;i<=NF;i++)if($i=="PID")n=i}NR==1{print n}' )
@@ -21,7 +21,7 @@ while :; do
 done
 
 # 保存穿透信息
-echo $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT $(date +%s) >$HATHDIR/stun-hath.ifo
+echo $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT $(date +%s) >$HATHDIR/stun-hath.info
 echo $(date) $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT >>$HATHDIR/stun-hath.log
 
 # 确保与上次穿透相隔 30 秒以上
