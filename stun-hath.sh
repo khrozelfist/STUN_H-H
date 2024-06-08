@@ -1,18 +1,18 @@
 # 以下变量需按要求填写
-PROXY='socks5://192.168.1.168:10808' # 可用的代理协议、地址与端口
-HATHDIR=/mnt/hath # H@H 所在目录
-HATHCID=12345 # H@H 的客户端 ID
-EHIPBID=1234567 # ipb_member_id
-EHIPBPW=0123456789abcdef0123456789abcdef # ipb_pass_hash
-GWLADDR=192.168.1.1 # 主路由 LAN 的 IPv4 地址
+PROXY='socks5://192.168.1.168:10808'		# 可用的代理协议、地址与端口
+HATHDIR=/mnt/hath				# H@H 所在目录
+HATHCID=12345					# H@H 的客户端 ID
+EHIPBID=1234567					# ipb_member_id
+EHIPBPW=0123456789abcdef0123456789abcdef	# ipb_pass_hash
+GWLADDR=192.168.1.1				# 主路由 LAN 的 IPv4 地址
 
 WANADDR=$1
 WANPORT=$2
 LANPORT=$4
 L4PROTO=$5
 OWNADDR=$6
-OLDPORT=$(awk -F ':| ' '{print$3}' $HATHDIR/stun-hath.info 2>/dev/null)
-OLDDATE=$(awk '{print$NF}' $HATHDIR/stun-hath.info 2>/dev/null)
+OLDPORT=$(awk -F ':| ' '{print$3}' $HATHDIR/stun-hath.ifo 2>/dev/null)
+OLDDATE=$(awk '{print$NF}' $HATHDIR/stun-hath.ifo 2>/dev/null)
 
 # 防止脚本重复运行
 PIDNF=$( ( ps aux 2>/dev/null; ps ) | awk '{for(i=1;i<=NF;i++)if($i=="PID")n=i}NR==1{print n}' )
@@ -21,7 +21,7 @@ while :; do
 done
 
 # 保存穿透信息
-echo $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT $(date +%s) >$HATHDIR/stun-hath.info
+echo $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT $(date +%s) >$HATHDIR/stun-hath.ifo
 echo $(date) $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT >>$HATHDIR/stun-hath.log
 
 # 确保与上次穿透相隔 30 秒以上
