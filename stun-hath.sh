@@ -76,7 +76,7 @@ NFTDNAT() {
 	nft create chain ip STUN HATHDNAT { type nat hook prerouting priority dstnat \; }
 	nft add rule ip STUN HATHDNAT tcp dport $LANPORT counter redirect to :$WANPORT
 	if ! nft list chain inet fw4 input | grep 'ct status dnat' >/dev/null; then
-		HANDLE=$(nft -a list chain inet fw4 input | grep jump | awk 'NR==1{print$NF}')
+		HANDLE=$(nft -a list chain inet fw4 input | grep jump | grep -v "tcp flags" | awk 'NR==1{print$NF}')
 		nft insert rule inet fw4 input handle $HANDLE ct status dnat counter accept
 	fi
 	NFT=1
