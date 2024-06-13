@@ -13,6 +13,7 @@ L4PROTO=$5
 OWNADDR=$6
 OLDPORT=$(awk -F ':| ' '{print$3}' $HATHDIR/stun-hath.info 2>/dev/null)
 OLDDATE=$(awk '{print$NF}' $HATHDIR/stun-hath.info 2>/dev/null)
+RELEASE=$(grep ^ID= /etc/os-release | awk -F '=' '{print$2}' | tr -d \")
 
 # 防止脚本重复运行
 PIDNF=$( ( ps aux 2>/dev/null; ps ) | awk '{for(i=1;i<=NF;i++)if($i=="PID")n=i}NR==1{print n}' )
@@ -71,15 +72,26 @@ echo Failed to get response. Please check PROXY. >&2
 
 # 若 H@H 运行在主路由上，则添加 DNAT 规则
 NFTDNAT() {
-	nft add table ip STUN
-	nft delete chain ip STUN HATHDNAT 2>/dev/null
-	nft create chain ip STUN HATHDNAT { type nat hook prerouting priority dstnat \; }
-	nft add rule ip STUN HATHDNAT tcp dport $LANPORT counter redirect to :$WANPORT
-	if ! nft list chain inet fw4 input | grep 'ct status dnat' >/dev/null; then
-		HANDLE=$(nft -a list chain inet fw4 input | grep jump | grep -v "tcp flags" | awk 'NR==1{print$NF}')
-		nft insert rule inet fw4 input handle $HANDLE ct status dnat counter accept
-	fi
-	NFT=1
+	case $RELEASE in
+		openwrt)
+			uci set firewall.HATHDNAT=redirect
+			uci set firewall.HATHDNAT.name=HATH_$LANPORT'->'$WANPORT
+			uci set firewall.HATHDNAT.src=wan
+			uci set firewall.HATHDNAT.proto=tcp
+			uci set firewall.HATHDNAT.src_dport=$LANPORT
+			uci set firewall.HATHDNAT.dest_port=$WANPORT
+			uci commit firewall
+			/etc/init.d/firewall reload
+			NFT=1
+			;;
+		*)
+			nft add table ip STUN
+			nft delete chain ip STUN HATHDNAT 2>/dev/null
+			nft create chain ip STUN HATHDNAT { type nat hook prerouting priority dstnat \; }
+			nft add rule ip STUN HATHDNAT tcp dport $LANPORT counter redirect to :$WANPORT
+			NFT=1
+			;;
+	esac
 }
 for LANADDR in $(ip -4 a show dev br-lan | grep inet | awk '{print$2}' | awk -F '/' '{print$1}'); do
 	[ "$NFT" = 1 ] && break
