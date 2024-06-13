@@ -74,6 +74,7 @@ echo Failed to get response. Please check PROXY. >&2
 NFTDNAT() {
 	case $RELEASE in
 		openwrt)
+  			uci delete firewall.HATHDNAT 2>/dev/null
 			uci set firewall.HATHDNAT=redirect
 			uci set firewall.HATHDNAT.name=HATH_$LANPORT'->'$WANPORT
 			uci set firewall.HATHDNAT.src=wan
