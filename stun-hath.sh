@@ -77,7 +77,7 @@ echo Failed to get response. Please check PROXY. >&2
 SETDNAT() {
 	if [ "$RELEASE" = "openwrt" ] && [ -z "$IFNAME" ]; then
 		nft delete chain ip STUN HATHDNAT 2>/dev/null
-		uci -q delete firewall.foo
+		uci -q delete firewall.STUN_foo
 		uci -q delete firewall.HATHDNAT
 		uci set firewall.HATHDNAT=redirect
 		uci set firewall.HATHDNAT.name=HATH_$LANPORT'->'$WANPORT
@@ -96,7 +96,7 @@ SETDNAT() {
 		nft add rule ip STUN HATHDNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT
 	fi
 	if [ "$RELEASE" = "openwrt" ] && [ "$UCI" != 1 ]; then
-		uci -q delete firewall.foo && RELOAD=1
+		uci -q delete firewall.STUN_foo && RELOAD=1
 		uci -q delete firewall.HATHDNAT && RELOAD=1
 		if uci show firewall | grep =redirect >/dev/null; then
 			i=0
@@ -106,10 +106,10 @@ SETDNAT() {
 			[ $(uci show firewall | grep =redirect | wc -l) -gt $i ] && RULE=1
 		fi
 		if [ "$RULE" != 1 ]; then
-			uci set firewall.foo=redirect
-			uci set firewall.foo.name=foo
-			uci set firewall.foo.src=wan
-			uci set firewall.foo.mark=$RANDOM
+			uci set firewall.STUN_foo=redirect
+			uci set firewall.STUN_foo.name=STUN_foo
+			uci set firewall.STUN_foo.src=wan
+			uci set firewall.STUN_foo.mark=$RANDOM
 			RELOAD=1
 		fi
 		uci commit firewall
@@ -128,6 +128,8 @@ done
 
 # 若 H@H 运行在主路由下，则通过 UPnP 请求规则
 if [ "$DNAT" != 1 ]; then
+	nft delete chain ip STUN HATHDNAT 2>/dev/null
+	[ "$RELEASE" = "openwrt" ] && uci -q delete firewall.HATHDNAT
 	[ -n "$OLDPORT" ] && upnpc -i -d $OLDPORT tcp
 	upnpc -i -e "STUN HATH $WANPORT->$LANPORT->$WANPORT" -a @ $WANPORT $LANPORT tcp
 fi
