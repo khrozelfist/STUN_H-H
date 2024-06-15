@@ -76,7 +76,7 @@ echo Failed to get response. Please check PROXY. >&2
 # 其他情况使用 nft，并检测是否需要填充 uci
 SETDNAT() {
 	if [ "$RELEASE" = "openwrt" ] && [ -z "$IFNAME" ]; then
-		uci delete firewall.HATHDNAT 2>/dev/null
+		uci -q delete firewall.HATHDNAT
 		uci set firewall.HATHDNAT=redirect
 		uci set firewall.HATHDNAT.name=HATH_$LANPORT'->'$WANPORT
 		uci set firewall.HATHDNAT.src=wan
@@ -84,7 +84,7 @@ SETDNAT() {
 		uci set firewall.HATHDNAT.src_dport=$LANPORT
 		uci set firewall.HATHDNAT.dest_port=$WANPORT
 		uci commit firewall
-		/etc/init.d/firewall reload >/dev/null 2>&1
+		fw4 -q reload
 		UCI=1
 	else
 		[ -n "$IFNAME" ] && IIFNAME="iifname $IFNAME"
@@ -94,7 +94,7 @@ SETDNAT() {
 		nft add rule ip STUN HATHDNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT
 	fi
 	if [ "$RELEASE" = "openwrt" ] && [ "$UCI" != 1 ]; then
-		uci delete firewall.HATHDNAT 2>/dev/null
+		uci -q delete firewall.HATHDNAT
 		if uci show firewall | grep =redirect >/dev/null; then
 			i=0
 			for CONFIG in $(uci show firewall | grep =redirect | awk -F = '{print$1}'); do
@@ -103,13 +103,13 @@ SETDNAT() {
 			[ $(uci show firewall | grep =redirect | wc -l) -gt $i ] && RULE=1
 		fi
 		if [ "$RULE" != 1 ]; then
-			uci delete firewall.foo 2>/dev/null
+			uci -q delete firewall.foo
 			uci set firewall.foo=redirect
 			uci set firewall.foo.name=foo
 			uci set firewall.foo.src=wan
 			uci set firewall.foo.mark=$RANDOM
 			uci commit firewall
-			/etc/init.d/firewall reload >/dev/null 2>&1
+			fw4 -q reload
 		fi
 	fi
 	DNAT=1
