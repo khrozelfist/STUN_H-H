@@ -112,19 +112,19 @@ SETDNAT() {
 			/etc/init.d/firewall reload >/dev/null 2>&1
 		fi
 	fi
-	NFT=1
+	DNAT=1
 }
 for LANADDR in $(ip -4 a show dev br-lan | grep inet | awk '{print$2}' | awk -F '/' '{print$1}'); do
-	[ "$NFT" = 1 ] && break
+	[ "$DNAT" = 1 ] && break
 	[ "$LANADDR" = $GWLADDR ] && SETDNAT
 done
 for LANADDR in $(nslookup -type=A $HOSTNAME | grep Address | grep -v :53 | awk '{print$2}'); do
-	[ "$NFT" = 1 ] && break
+	[ "$DNAT" = 1 ] && break
 	[ "$LANADDR" = $GWLADDR ] && SETDNAT
 done
 
 # 若 H@H 运行在主路由下，则通过 UPnP 请求规则
-if [ "$NFT" != 1 ]; then
+if [ "$DNAT" != 1 ]; then
 	[ -n "$OLDPORT" ] && upnpc -i -d $OLDPORT tcp
 	upnpc -i -e "STUN HATH $WANPORT->$LANPORT->$WANPORT" -a @ $WANPORT $LANPORT tcp
 fi
