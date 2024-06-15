@@ -84,7 +84,7 @@ SETDNAT() {
 		uci set firewall.HATHDNAT.src_dport=$LANPORT
 		uci set firewall.HATHDNAT.dest_port=$WANPORT
 		uci commit firewall
-		/etc/init.d/firewall reload
+		/etc/init.d/firewall reload >/dev/null 2>&1
 		UCI=1
 	else
 		[ -n "$IFNAME" ] && IIFNAME="iifname $IFNAME"
