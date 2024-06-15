@@ -76,6 +76,7 @@ echo Failed to get response. Please check PROXY. >&2
 # 其他情况使用 nft，并检测是否需要填充 uci
 SETDNAT() {
 	if [ "$RELEASE" = "openwrt" ] && [ -z "$IFNAME" ]; then
+ 		uci -q delete firewall.foo
 		uci -q delete firewall.HATHDNAT
 		uci set firewall.HATHDNAT=redirect
 		uci set firewall.HATHDNAT.name=HATH_$LANPORT'->'$WANPORT
