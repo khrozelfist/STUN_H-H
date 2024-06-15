@@ -76,7 +76,7 @@ echo Failed to get response. Please check PROXY. >&2
 # 其他情况使用 nft，并检测是否需要填充 uci
 SETDNAT() {
 	if [ "$RELEASE" = "openwrt" ] && [ -z "$IFNAME" ]; then
- 		uci -q delete firewall.foo
+		uci -q delete firewall.foo
 		uci -q delete firewall.HATHDNAT
 		uci set firewall.HATHDNAT=redirect
 		uci set firewall.HATHDNAT.name=HATH_$LANPORT'->'$WANPORT
@@ -95,6 +95,7 @@ SETDNAT() {
 		nft add rule ip STUN HATHDNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT
 	fi
 	if [ "$RELEASE" = "openwrt" ] && [ "$UCI" != 1 ]; then
+		uci -q delete firewall.foo
 		uci -q delete firewall.HATHDNAT
 		if uci show firewall | grep =redirect >/dev/null; then
 			i=0
@@ -104,14 +105,13 @@ SETDNAT() {
 			[ $(uci show firewall | grep =redirect | wc -l) -gt $i ] && RULE=1
 		fi
 		if [ "$RULE" != 1 ]; then
-			uci -q delete firewall.foo
 			uci set firewall.foo=redirect
 			uci set firewall.foo.name=foo
 			uci set firewall.foo.src=wan
 			uci set firewall.foo.mark=$RANDOM
-			uci commit firewall
-			fw4 -q reload
 		fi
+		uci commit firewall
+		fw4 -q reload
 	fi
 	DNAT=1
 }
