@@ -1,5 +1,6 @@
 # 以下变量需按要求填写
 PROXY='socks5://192.168.1.168:10808'		# 可用的代理协议、地址与端口
+IFNAME=						# 指定接口，可留空；仅在多 WAN 时需要；拨号接口的格式为 "pppoe-wancm"
 HATHDIR=/mnt/hath				# H@H 所在目录
 HATHCID=12345					# H@H 的客户端 ID
 EHIPBID=1234567					# ipb_member_id
@@ -71,36 +72,55 @@ curl -s -m 5 \
 echo Failed to get response. Please check PROXY. >&2
 
 # 若 H@H 运行在主路由上，则添加 DNAT 规则
-NFTDNAT() {
-	case $RELEASE in
-		openwrt)
-  			uci delete firewall.HATHDNAT 2>/dev/null
-			uci set firewall.HATHDNAT=redirect
-			uci set firewall.HATHDNAT.name=HATH_$LANPORT'->'$WANPORT
-			uci set firewall.HATHDNAT.src=wan
-			uci set firewall.HATHDNAT.proto=tcp
-			uci set firewall.HATHDNAT.src_dport=$LANPORT
-			uci set firewall.HATHDNAT.dest_port=$WANPORT
+# 系统为 OpenWrt，且未指定 IFNAME 时，使用 uci
+# 其他情况使用 nft，并检测是否需要填充 uci
+SETDNAT() {
+	if [ "$RELEASE" = "openwrt" ] && [ -z "$IFNAME" ]; then
+		uci delete firewall.HATHDNAT 2>/dev/null
+		uci set firewall.HATHDNAT=redirect
+		uci set firewall.HATHDNAT.name=HATH_$LANPORT'->'$WANPORT
+		uci set firewall.HATHDNAT.src=wan
+		uci set firewall.HATHDNAT.proto=tcp
+		uci set firewall.HATHDNAT.src_dport=$LANPORT
+		uci set firewall.HATHDNAT.dest_port=$WANPORT
+		uci commit firewall
+		/etc/init.d/firewall reload
+		UCI=1
+	else
+		[ -n "$IFNAME" ] && IIFNAME="iifname $IFNAME"
+		nft add table ip STUN
+		nft delete chain ip STUN HATHDNAT 2>/dev/null
+		nft create chain ip STUN HATHDNAT { type nat hook prerouting priority dstnat \; }
+		nft add rule ip STUN HATHDNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT
+	fi
+	if [ "$RELEASE" = "openwrt" ] && [ "$UCI" != 1 ]; then
+		uci delete firewall.HATHDNAT 2>/dev/null
+		if uci show firewall | grep =redirect >/dev/null; then
+			i=0
+			for CONFIG in $(uci show firewall | grep =redirect | awk -F = '{print$1}'); do
+				[ "$(uci -q get $CONFIG.enabled)" = 0 ] && let i++
+			done
+			[ $(uci show firewall | grep =redirect | wc -l) -gt $i ] && RULE=1
+		fi
+		if [ "$RULE" != 1 ]; then
+			uci delete firewall.foo 2>/dev/null
+			uci set firewall.foo=redirect
+			uci set firewall.foo.name=foo
+			uci set firewall.foo.src=wan
+			uci set firewall.foo.mark=$RANDOM
 			uci commit firewall
-			/etc/init.d/firewall reload
-			NFT=1
-			;;
-		*)
-			nft add table ip STUN
-			nft delete chain ip STUN HATHDNAT 2>/dev/null
-			nft create chain ip STUN HATHDNAT { type nat hook prerouting priority dstnat \; }
-			nft add rule ip STUN HATHDNAT tcp dport $LANPORT counter redirect to :$WANPORT
-			NFT=1
-			;;
-	esac
+			/etc/init.d/firewall reload >/dev/null 2>&1
+		fi
+	fi
+	NFT=1
 }
 for LANADDR in $(ip -4 a show dev br-lan | grep inet | awk '{print$2}' | awk -F '/' '{print$1}'); do
 	[ "$NFT" = 1 ] && break
-	[ "$LANADDR" = $GWLADDR ] && NFTDNAT
+	[ "$LANADDR" = $GWLADDR ] && SETDNAT
 done
 for LANADDR in $(nslookup -type=A $HOSTNAME | grep Address | grep -v :53 | awk '{print$2}'); do
 	[ "$NFT" = 1 ] && break
-	[ "$LANADDR" = $GWLADDR ] && NFTDNAT
+	[ "$LANADDR" = $GWLADDR ] && SETDNAT
 done
 
 # 若 H@H 运行在主路由下，则通过 UPnP 请求规则
