@@ -95,8 +95,8 @@ SETDNAT() {
 		nft add rule ip STUN HATHDNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT
 	fi
 	if [ "$RELEASE" = "openwrt" ] && [ "$UCI" != 1 ]; then
-		uci -q delete firewall.foo
-		uci -q delete firewall.HATHDNAT
+		uci -q delete firewall.foo && RELOAD=1
+		uci -q delete firewall.HATHDNAT && RELOAD=1
 		if uci show firewall | grep =redirect >/dev/null; then
 			i=0
 			for CONFIG in $(uci show firewall | grep =redirect | awk -F = '{print$1}'); do
@@ -109,9 +109,10 @@ SETDNAT() {
 			uci set firewall.foo.name=foo
 			uci set firewall.foo.src=wan
 			uci set firewall.foo.mark=$RANDOM
+			RELOAD=1
 		fi
 		uci commit firewall
-		fw4 -q reload
+		[ "$RELOAD" = 1 ] && fw4 -q reload
 	fi
 	DNAT=1
 }
