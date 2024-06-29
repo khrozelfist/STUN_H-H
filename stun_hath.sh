@@ -103,7 +103,8 @@ SETDNAT() {
 		if uci show firewall | grep =redirect >/dev/null; then
 			i=0
 			for CONFIG in $(uci show firewall | grep =redirect | awk -F = '{print$1}'); do
-				[ "$(uci -q get $CONFIG.enabled)" = 0 ] && let i++
+				[ "$(uci -q get $CONFIG.enabled)" = 0 ] && let i++ && break
+				[ "$(uci -q get $CONFIG.src)" != "wan" ] && let i++
 			done
 			[ $(uci show firewall | grep =redirect | wc -l) -gt $i ] && RULE=1
 		fi
