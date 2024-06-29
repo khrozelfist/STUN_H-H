@@ -12,8 +12,10 @@ WANPORT=$2
 LANPORT=$4
 L4PROTO=$5
 OWNADDR=$6
-OLDPORT=$(awk -F ':| ' '{print$3}' $HATHDIR/stun-hath.info 2>/dev/null)
-OLDDATE=$(awk '{print$NF}' $HATHDIR/stun-hath.info 2>/dev/null)
+
+OWNNAME=$(echo $0 | awk -F / '{print$NF}' | awk -F . '{print$1}')
+OLDPORT=$(awk -F ':| ' '{print$3}' $HATHDIR/$OWNNAME.info 2>/dev/null)
+OLDDATE=$(awk '{print$NF}' $HATHDIR/$OWNNAME.info 2>/dev/null)
 RELEASE=$(grep ^ID= /etc/os-release | awk -F '=' '{print$2}' | tr -d \")
 
 # 防止脚本重复运行
@@ -23,15 +25,15 @@ while :; do
 done
 
 # 保存穿透信息
-echo $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT $(date +%s) >$HATHDIR/stun-hath.info
-echo $(date) $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT >>$HATHDIR/stun-hath.log
+echo $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT $(date +%s) >$HATHDIR/$OWNNAME.info
+echo $(date) $L4PROTO $WANADDR:$WANPORT '->' $OWNADDR:$LANPORT >>$HATHDIR/$OWNNAME.log
 
 # 确保与上次穿透相隔 30 秒以上
 [ -n "$OLDDATE" ] && \
 [ $(($(date +%s) - $OLDDATE)) -lt 30 ] && sleep 30
 
 # 获取 H@H 设置信息
-HATHPHP=/tmp/hath.php
+HATHPHP=/tmp/$OWNNAME.php
 touch $HATHPHP
 curl -s -m 5 \
 -x $PROXY \
@@ -49,8 +51,8 @@ f_use_less_memory=$(grep f_use_less_memory $HATHPHP | grep checked)
 f_is_hathdler=$(grep f_is_hathdler $HATHPHP | grep checked)
 
 # 停止 H@H，等待 30 秒
-if [ "$(screen -list | grep hath)" ]; then
-	screen -S hath -X stuff '^C'
+if [ "$(screen -list | grep $OWNNAME)" ]; then
+	screen -S $OWNNAME -X stuff '^C'
 	sleep 30
 fi
 
@@ -92,10 +94,10 @@ SETDNAT() {
 		[ -n "$IFNAME" ] && IIFNAME="iifname $IFNAME"
 		nft add table ip STUN
 		nft add chain ip STUN HATHDNAT { type nat hook prerouting priority dstnat \; }
-		for HANDLE in $(nft -a list chain ip STUN HATHDNAT | grep "$IFNAME" | grep "tcp dport" | awk '{print$NF}'); do
+		for HANDLE in $(nft -a list chain ip STUN HATHDNAT | grep \"$OWNNAME\" | awk '{print$NF}'); do
 			nft delete rule ip STUN HATHDNAT handle $HANDLE
 		done
-		nft add rule ip STUN HATHDNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT
+		nft add rule ip STUN HATHDNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT comment $OWNNAME
 	fi
 	if [ "$RELEASE" = "openwrt" ] && [ "$UCI" != 1 ]; then
 		uci -q delete firewall.STUN_foo && RELOAD=1
@@ -138,20 +140,20 @@ fi
 
 # 启动 H@H
 RUNHATH() {
-for PID in $(screen -ls | grep hath | awk '{print$1}'); do
+for PID in $(screen -ls | grep $OWNNAME | awk '{print$1}'); do
 	screen -S $PID -X quit
 done
 cd $HATHDIR
-HATHLOG=/tmp/hath.log
+HATHLOG=/tmp/screen_$OWNNAME.log
 : >$HATHLOG
-screen -dmS hath -L -Logfile $HATHLOG java -jar $HATHDIR/HentaiAtHome.jar
+screen -dmS $OWNNAME -L -Logfile $HATHLOG java -jar $HATHDIR/HentaiAtHome.jar
 }
 RUNHATH
 
 # 检测启动结果
 while :; do
 	sleep 60
-	grep "Startup notification failed" $HATHLOG || { screen -S hath -X log off; exit; }
+	grep "Startup notification failed" $HATHLOG || { screen -S $OWNNAME -X log off; exit; }
 	if grep "port $WANPORT" $HATHLOG; then
 		sleep 300
 		RUNHATH
