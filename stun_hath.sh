@@ -78,30 +78,28 @@ echo Failed to get response. Please check PROXY. >&2
 # 其他情况使用 nft，并检测是否需要填充 uci
 SETDNAT() {
 	if [ "$RELEASE" = "openwrt" ] && [ -z "$IFNAME" ]; then
-		nft delete chain ip STUN HATHDNAT 2>/dev/null
-		uci -q delete firewall.STUN_foo
-		uci -q delete firewall.HATHDNAT
-		uci set firewall.HATHDNAT=redirect
-		uci set firewall.HATHDNAT.name=HATH_$LANPORT'->'$WANPORT
-		uci set firewall.HATHDNAT.src=wan
-		uci set firewall.HATHDNAT.proto=tcp
-		uci set firewall.HATHDNAT.src_dport=$LANPORT
-		uci set firewall.HATHDNAT.dest_port=$WANPORT
+		nft delete rule ip STUN DNAT handle $(nft -a list chain ip STUN DNAT 2>/dev/null | grep \"$OWNNAME\" | awk '{print$NF}') 2>/dev/null
+		uci -q delete firewall.stun_foo
+		uci -q delete firewall.$OWNNAME
+		uci set firewall.$OWNNAME=redirect
+		uci set firewall.$OWNNAME.name=${OWNNAME}_$LANPORT'->'$WANPORT
+		uci set firewall.$OWNNAME.src=wan
+		uci set firewall.$OWNNAME.proto=tcp
+		uci set firewall.$OWNNAME.src_dport=$LANPORT
+		uci set firewall.$OWNNAME.dest_port=$WANPORT
 		uci commit firewall
 		fw4 -q reload
 		UCI=1
 	else
 		[ -n "$IFNAME" ] && IIFNAME="iifname $IFNAME"
 		nft add table ip STUN
-		nft add chain ip STUN HATHDNAT { type nat hook prerouting priority dstnat \; }
-		for HANDLE in $(nft -a list chain ip STUN HATHDNAT | grep \"$OWNNAME\" | awk '{print$NF}'); do
-			nft delete rule ip STUN HATHDNAT handle $HANDLE
-		done
-		nft add rule ip STUN HATHDNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT comment $OWNNAME
+		nft add chain ip STUN DNAT { type nat hook prerouting priority dstnat \; }
+		nft delete rule ip STUN DNAT handle $(nft -a list chain ip STUN DNAT 2>/dev/null | grep \"$OWNNAME\" | awk '{print$NF}') 2>/dev/null
+		nft add rule ip STUN DNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT comment $OWNNAME
 	fi
 	if [ "$RELEASE" = "openwrt" ] && [ "$UCI" != 1 ]; then
-		uci -q delete firewall.STUN_foo && RELOAD=1
-		uci -q delete firewall.HATHDNAT && RELOAD=1
+		uci -q delete firewall.stun_foo && RELOAD=1
+		uci -q delete firewall.$OWNNAME && RELOAD=1
 		if uci show firewall | grep =redirect >/dev/null; then
 			i=0
 			for CONFIG in $(uci show firewall | grep =redirect | awk -F = '{print$1}'); do
@@ -110,10 +108,10 @@ SETDNAT() {
 			[ $(uci show firewall | grep =redirect | wc -l) -gt $i ] && RULE=1
 		fi
 		if [ "$RULE" != 1 ]; then
-			uci set firewall.STUN_foo=redirect
-			uci set firewall.STUN_foo.name=STUN_foo
-			uci set firewall.STUN_foo.src=wan
-			uci set firewall.STUN_foo.mark=$RANDOM
+			uci set firewall.stun_foo=redirect
+			uci set firewall.stun_foo.name=stun_foo
+			uci set firewall.stun_foo.src=wan
+			uci set firewall.stun_foo.mark=$RANDOM
 			RELOAD=1
 		fi
 		uci commit firewall
@@ -132,8 +130,8 @@ done
 
 # 若 H@H 运行在主路由下，则通过 UPnP 请求规则
 if [ "$DNAT" != 1 ]; then
-	nft delete chain ip STUN HATHDNAT 2>/dev/null
-	[ "$RELEASE" = "openwrt" ] && uci -q delete firewall.HATHDNAT
+	nft delete rule ip STUN DNAT handle $(nft -a list chain ip STUN DNAT 2>/dev/null | grep \"$OWNNAME\" | awk '{print$NF}') 2>/dev/null
+	[ "$RELEASE" = "openwrt" ] && uci -q delete firewall.$OWNNAME
 	[ -n "$OLDPORT" ] && upnpc -i -d $OLDPORT tcp
 	upnpc -i -e "STUN HATH $WANPORT->$LANPORT->$WANPORT" -a @ $WANPORT $LANPORT tcp
 fi
