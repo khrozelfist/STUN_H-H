@@ -92,7 +92,7 @@ SETDNAT() {
 		[ -n "$IFNAME" ] && IIFNAME="iifname $IFNAME"
 		nft add table ip STUN
 		nft add chain ip STUN HATHDNAT { type nat hook prerouting priority dstnat \; }
-  		for HANDLE in $(nft -a list chain ip STUN HATHDNAT | grep "$IFNAME" | grep "tcp dport" | awk '{print$NF}'); do
+		for HANDLE in $(nft -a list chain ip STUN HATHDNAT | grep "$IFNAME" | grep "tcp dport" | awk '{print$NF}'); do
 			nft delete rule ip STUN HATHDNAT handle $HANDLE
 		done
 		nft add rule ip STUN HATHDNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT
