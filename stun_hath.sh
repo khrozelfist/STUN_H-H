@@ -13,10 +13,10 @@ LANPORT=$4
 L4PROTO=$5
 OWNADDR=$6
 
-OWNNAME=$(echo $0 | awk -F / '{print$NF}' | awk -F . '{print$1}')
+OWNNAME=$(echo $0 | awk -F / '{print$NF}' | awk -F . '{print$1}' | sed 's/[[:punct:]]/_/g')
+RELEASE=$(grep ^ID= /etc/os-release | awk -F '=' '{print$2}' | tr -d \")
 OLDPORT=$(awk -F ':| ' '{print$3}' $HATHDIR/$OWNNAME.info 2>/dev/null)
 OLDDATE=$(awk '{print$NF}' $HATHDIR/$OWNNAME.info 2>/dev/null)
-RELEASE=$(grep ^ID= /etc/os-release | awk -F '=' '{print$2}' | tr -d \")
 
 # 防止脚本重复运行
 PIDNF=$( ( ps aux 2>/dev/null; ps ) | awk '{for(i=1;i<=NF;i++)if($i=="PID")n=i}NR==1{print n}' )
@@ -77,6 +77,8 @@ echo Failed to get response. Please check PROXY. >&2
 # 系统为 OpenWrt，且未指定 IFNAME 时，使用 uci
 # 其他情况使用 nft，并检测是否需要填充 uci
 SETDNAT() {
+	nft delete rule ip STUN DNAT handle $(nft -a list chain ip STUN DNAT 2>/dev/null | grep \"$OWNNAME\" | awk '{print$NF}') 2>/dev/null
+	iptables -t nat $(iptables-save | grep $OWNNAME | sed 's/-A/-D/') 2>/dev/null
 	if [ "$RELEASE" = "openwrt" ] && [ -z "$IFNAME" ]; then
 		nft delete rule ip STUN DNAT handle $(nft -a list chain ip STUN DNAT 2>/dev/null | grep \"$OWNNAME\" | awk '{print$NF}') 2>/dev/null
 		uci -q delete firewall.stun_foo
@@ -88,14 +90,16 @@ SETDNAT() {
 		uci set firewall.$OWNNAME.src_dport=$LANPORT
 		uci set firewall.$OWNNAME.dest_port=$WANPORT
 		uci commit firewall
-		fw4 -q reload
+		/etc/init.d/firewall reload >/dev/null 2>&1
 		UCI=1
-	else
+	elif nft -v >/dev/null 2>&1; then
 		[ -n "$IFNAME" ] && IIFNAME="iifname $IFNAME"
 		nft add table ip STUN
 		nft add chain ip STUN DNAT { type nat hook prerouting priority dstnat \; }
-		nft delete rule ip STUN DNAT handle $(nft -a list chain ip STUN DNAT 2>/dev/null | grep \"$OWNNAME\" | awk '{print$NF}') 2>/dev/null
-		nft add rule ip STUN DNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT comment $OWNNAME
+		nft insert rule ip STUN DNAT $IIFNAME tcp dport $LANPORT counter redirect to :$WANPORT comment $OWNNAME
+	elif iptables -V >/dev/null 2>&1; then
+		[ -n "$IFNAME" ] && IIFNAME="-i $IFNAME"
+		iptables -t nat -I PREROUTING $IIFNAME -p tcp --dport $LANPORT -m comment --comment $OWNNAME -j REDIRECT --to-ports $WANPORT
 	fi
 	if [ "$RELEASE" = "openwrt" ] && [ "$UCI" != 1 ]; then
 		uci -q delete firewall.stun_foo && RELOAD=1
@@ -116,7 +120,7 @@ SETDNAT() {
 			RELOAD=1
 		fi
 		uci commit firewall
-		[ "$RELOAD" = 1 ] && fw4 -q reload
+		[ "$RELOAD" = 1 ] && /etc/init.d/firewall reload >/dev/null 2>&1
 	fi
 	DNAT=1
 }
